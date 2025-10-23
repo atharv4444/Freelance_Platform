@@ -1,0 +1,305 @@
+import os
+import sys
+
+# Set CUDA environment variables before importing numba
+cuda_paths = [
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0",  # Your CUDA 13.0
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.8",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.0",
+    "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.8"
+]
+
+# Find existing CUDA installation
+for cuda_path in cuda_paths:
+    if os.path.exists(cuda_path):
+        os.environ['CUDA_HOME'] = cuda_path
+        os.environ['CUDA_PATH'] = cuda_path
+        
+        # Add CUDA bin to PATH
+        cuda_bin = os.path.join(cuda_path, 'bin')
+        if cuda_bin not in os.environ.get('PATH', ''):
+            os.environ['PATH'] = cuda_bin + ';' + os.environ.get('PATH', '')
+        
+        print(f"Set CUDA_HOME to: {cuda_path}")
+        break
+else:
+    print("Warning: CUDA installation not found in standard locations")
+
+# Force disable CUDA simulator
+os.environ['NUMBA_ENABLE_CUDASIM'] = '0'
+
+
+import tkinter as tk
+from tkinter import scrolledtext
+import numpy as np
+from numba import cuda
+import time
+import math
+
+
+# --- GPU Kernel ---
+@cuda.jit
+def gpu_matrix_mul_kernel(A, B, C):
+    """
+    Performs the calculation C = A * B on the GPU.
+    """
+    row, col = cuda.grid(2)
+
+    if row < C.shape[0] and col < C.shape[1]:
+        tmp = 0.0
+        for k in range(A.shape[1]):
+            tmp += A[row, k] * B[k, col]
+        C[row, col] = tmp
+
+
+def check_cuda_availability():
+    """Check if CUDA is available and working"""
+    try:
+        # Test basic CUDA functionality
+        cuda.detect()
+        if not cuda.is_available():
+            return False, "CUDA is not available on this system"
+        
+        # Try to get device list
+        devices = cuda.list_devices()
+        if not devices:
+            return False, "No CUDA devices found"
+            
+        # Try to select device
+        cuda.select_device(0)
+        
+        # Test memory allocation with small array
+        test_array = np.array([1.0, 2.0], dtype=np.float32)
+        test_gpu = cuda.to_device(test_array)
+        del test_gpu
+        
+        return True, f"CUDA available with {len(devices)} device(s)"
+        
+    except Exception as e:
+        return False, f"CUDA initialization failed: {str(e)}"
+
+
+def run_benchmark():
+    """
+    Gets user input, runs the CPU and GPU benchmarks, and displays results in the GUI.
+    """
+    # 1. Clear previous results from the text box.
+    results_text.delete('1.0', tk.END)
+    
+    # 2. Get matrix size from the GUI input and validate it.
+    try:
+        matrix_size = int(size_entry.get())
+        if matrix_size <= 0:
+            results_text.insert(tk.INSERT, "Error: Please enter a positive integer.")
+            return
+    except ValueError:
+        results_text.insert(tk.INSERT, "Error: Invalid input. Please enter an integer.")
+        return
+
+    # 3. Check CUDA availability first
+    cuda_available, cuda_message = check_cuda_availability()
+    log(f"CUDA Status: {cuda_message}")
+    
+    if not cuda_available:
+        log("Continuing with CPU-only benchmark...")
+
+    # --- Setup Matrices ---
+    log("Setting up {0}x{0} matrices...".format(matrix_size))
+    
+    # Ensure arrays are contiguous and float32
+    A = np.ascontiguousarray(np.random.rand(matrix_size, matrix_size).astype(np.float32))
+    B = np.ascontiguousarray(np.random.rand(matrix_size, matrix_size).astype(np.float32))
+
+    # --- CPU Benchmark ---
+    log("Running benchmark on CPU...")
+    
+    start_cpu = time.time()
+    C_cpu = np.dot(A, B) 
+    end_cpu = time.time()
+    cpu_time = end_cpu - start_cpu
+    
+    log("-> CPU Time: {:.4f} seconds\n".format(cpu_time))
+
+    # --- GPU Benchmark ---
+    if cuda_available:
+        try:
+            log("Running benchmark on GPU...")
+            
+            # Reset CUDA context to ensure clean state
+            cuda.close()
+            cuda.select_device(0)
+            
+            # Copy data from CPU RAM to GPU VRAM with error handling
+            A_global_mem = cuda.to_device(A)
+            B_global_mem = cuda.to_device(B)
+            C_global_mem = cuda.device_array((matrix_size, matrix_size), dtype=np.float32)
+
+            # Configure the GPU grid dimensions
+            threads_per_block = (16, 16)
+            blocks_per_grid_x = math.ceil(A.shape[0] / threads_per_block[0])
+            blocks_per_grid_y = math.ceil(B.shape[1] / threads_per_block[1])
+            blocks_per_grid = (blocks_per_grid_x, blocks_per_grid_y)
+
+            # Launch the kernel and time it
+            start_gpu = time.time()
+            gpu_matrix_mul_kernel[blocks_per_grid, threads_per_block](A_global_mem, B_global_mem, C_global_mem)
+            cuda.synchronize()  # Wait for the GPU to finish
+            end_gpu = time.time()
+            gpu_time = end_gpu - start_gpu
+
+            log("-> GPU Time: {:.4f} seconds\n".format(gpu_time))
+
+            # Clean up GPU memory
+            del A_global_mem, B_global_mem, C_global_mem
+
+            # --- Final Comparison ---
+            if gpu_time > 0:
+                speedup = cpu_time / gpu_time
+                log("--- RESULTS ---")
+                log("GPU was {:.2f}x faster than the CPU!".format(speedup))
+            else:
+                log("GPU computation was too fast to measure accurately.")
+                
+        except Exception as e:
+            log(f"GPU benchmark failed: {str(e)}")
+            log("This could be due to:")
+            log("1. Insufficient GPU memory")
+            log("2. CUDA driver issues")
+            log("3. GPU hardware problems")
+            log("\nTry reducing matrix size or updating CUDA drivers.")
+    else:
+        log("Skipping GPU benchmark - CUDA not available")
+
+
+def log(message):
+    """Helper function to print messages to the GUI text box and force an update."""
+    results_text.insert(tk.INSERT, message + "\n")
+    root.update_idletasks()
+
+
+# --- GUI Setup ---
+root = tk.Tk()
+root.title("COA Project: CPU vs GPU Benchmark")
+root.geometry("600x500")
+
+# Frame for input widgets
+input_frame = tk.Frame(root, pady=10)
+input_frame.pack()
+
+# Input Label and Entry box for matrix size
+size_label = tk.Label(input_frame, text="Enter Matrix Size (e.g., 1024):")
+size_label.pack(side=tk.LEFT, padx=5)
+
+size_entry = tk.Entry(input_frame, width=10)
+size_entry.pack(side=tk.LEFT)
+size_entry.insert(0, "512")  # Start with smaller default for testing
+
+# Run button
+run_button = tk.Button(root, text="Run Benchmark", command=run_benchmark, font=('Helvetica', 10, 'bold'))
+run_button.pack(pady=5)
+
+# Info button for CUDA status
+def show_cuda_info():
+    available, message = check_cuda_availability()
+    info_window = tk.Toplevel(root)
+    info_window.title("CUDA Information")
+    info_window.geometry("400x200")
+    
+    info_text = tk.Text(info_window, wrap=tk.WORD, padx=10, pady=10)
+    info_text.pack(fill=tk.BOTH, expand=True)
+    
+    info_text.insert(tk.INSERT, f"CUDA Status: {message}\n\n")
+    
+    if available:
+        try:
+            devices = cuda.list_devices()
+            info_text.insert(tk.INSERT, f"Available devices: {len(devices)}\n")
+            for i, device in enumerate(devices):
+                info_text.insert(tk.INSERT, f"Device {i}: {device}\n")
+        except:
+            info_text.insert(tk.INSERT, "Could not retrieve device information\n")
+
+info_button = tk.Button(root, text="CUDA Info", command=show_cuda_info)
+info_button.pack(pady=2)
+
+# Scrolled Text box to display results
+results_text = scrolledtext.ScrolledText(root, width=65, height=20, wrap=tk.WORD)
+results_text.pack(pady=10, padx=10)
+
+# Start the GUI event loop
+root.mainloop()
+def check_cuda_availability():
+    """Check if CUDA is available and working"""
+    try:
+        # Force CUDA driver initialization
+        import os
+        os.environ['NUMBA_ENABLE_CUDASIM'] = '0'  # Disable simulator
+        
+        # Clear any existing context first
+        try:
+            cuda.close()
+        except:
+            pass
+        
+        # Initialize CUDA driver explicitly
+        cuda.cudadrv.driver.driver.init()
+        
+        # Check if CUDA is available
+        if not cuda.is_available():
+            return False, "CUDA is not available on this system"
+        
+        # Try to detect devices
+        detected = cuda.detect()  # This returns True/False
+        if not detected:
+            return False, "No CUDA devices detected"
+            
+        # Try to get device list
+        devices = cuda.list_devices()
+        if not devices:
+            return False, "No CUDA devices found in device list"
+            
+        # Try to select device and create context
+        cuda.select_device(0)
+        ctx = cuda.current_context()
+        
+        # Test memory allocation with small array
+        test_array = np.array([1.0, 2.0], dtype=np.float32)
+        test_gpu = cuda.to_device(test_array)
+        del test_gpu
+        
+        return True, f"CUDA available with {len(devices)} device(s): {devices[0].name.decode()}"
+        
+    except Exception as e:
+        return False, f"CUDA initialization failed: {str(e)}"
+def debug_cuda():
+    """Debug CUDA step by step"""
+    log("=== CUDA DEBUG ===")
+    
+    try:
+        log("Step 1: Import numba.cuda - OK")
+        
+        # Force driver init
+        cuda.cudadrv.driver.driver.init()
+        log("Step 2: Driver init - OK")
+        
+        # Check is_available
+        available = cuda.is_available()
+        log(f"Step 3: is_available() = {available}")
+        
+        if available:
+            # Try detect
+            detected = cuda.detect()
+            log(f"Step 4: detect() = {detected}")
+            
+            # Try list devices
+            devices = cuda.list_devices()
+            log(f"Step 5: Found {len(devices)} devices")
+            
+        return available
+        
+    except Exception as e:
+        log(f"CUDA Debug failed at: {e}")
+        return False
+
+# Call this in run_benchmark() before checking CUDA
+debug_available = debug_cuda()
