@@ -41,6 +41,15 @@ public class UserManager {
         refreshUserTable();
     }
 
+    public UserManager(DatabaseManager db) {
+        this.dbManager = db;
+        try { for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels())
+            if ("Nimbus".equals(info.getName())) { UIManager.setLookAndFeel(info.getClassName()); break; }
+        } catch (Exception ignored) {}
+        setupWindow();
+        refreshUserTable();
+    }
+
     private void setupWindow() {
         window = new JFrame("User Management System");
         window.setSize(950, 700);
