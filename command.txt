@@ -1,2 +1,2 @@
-java -cp ".:sqlite-jdbc-3.50.3.0.jar:." Main
-javac -cp ".:sqlite-jdbc-3.50.3.0.jar:." *.java
+javac -cp ".:sqlite-jdbc-3.50.3.0.jar:itextpdf-5.5.13.3.jar:." *.java
+java -cp ".:sqlite-jdbc-3.50.3.0.jar:itextpdf-5.5.13.3.jar:." Main

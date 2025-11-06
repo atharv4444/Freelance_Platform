@@ -1,6 +1,17 @@
 import javax.swing.*;
 import java.awt.*;
 import java.text.DecimalFormat;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.BaseColor;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.BaseColor;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
+import com.itextpdf.text.pdf.*;
 
 public class WageCalculator {
     private JFrame window;
@@ -133,7 +144,7 @@ public class WageCalculator {
         rateCard.setBackground(panelColor);
         rateCard.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         finalRateLabel = new JLabel(currency.format(0), JLabel.CENTER);
-        finalRateLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+        finalRateLabel.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 32));
         finalRateLabel.setForeground(accentColor);
         JLabel rateSubLabel = createStyledLabel("Fair Hourly Rate");
         rateSubLabel.setHorizontalAlignment(JLabel.CENTER);
@@ -145,7 +156,7 @@ public class WageCalculator {
         totalCard.setBackground(panelColor);
         totalCard.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         totalLabel = new JLabel(currency.format(0), JLabel.CENTER);
-        totalLabel.setFont(new Font("Segoe UI", Font.BOLD, 42));
+        totalLabel.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 42));
         totalLabel.setForeground(successColor);
         JLabel totalSubLabel = createStyledLabel("Total Project Cost");
         totalSubLabel.setHorizontalAlignment(JLabel.CENTER);
@@ -162,7 +173,7 @@ public class WageCalculator {
     private JScrollPane createBreakdownPanel() {
         breakdownArea = new JTextArea(10, 40);
         breakdownArea.setEditable(false);
-        breakdownArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        breakdownArea.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 14));
         breakdownArea.setBackground(panelColor);
         breakdownArea.setForeground(textColor);
         breakdownArea.setBorder(BorderFactory.createCompoundBorder(
@@ -277,22 +288,73 @@ public class WageCalculator {
     }
     
     private void generateQuote() {
-        // Enhanced with HTML for better formatting in the dialog
-        String htmlQuote = "<html><body style='width: 350px; font-family: sans-serif;'>"
-            + "<h2>Freelance Project Quote</h2>"
-            + "<hr>"
-            + "<p><b>Skill:</b> " + skillCombo.getSelectedItem() + "</p>"
-            + "<p><b>Experience:</b> " + experienceCombo.getSelectedItem() + "</p>"
-            + "<p><b>Complexity:</b> " + complexityCombo.getSelectedItem() + "</p>"
-            + "<p><b>Location Tier:</b> " + locationCombo.getSelectedItem() + "</p>"
-            + "<p><b>Estimated Hours:</b> " + hoursField.getText() + "</p>"
-            + "<hr>"
-            + "<p><b>Calculated Fair Rate:</b><br><font size='+1' color='#3498db'>" + currency.format(Double.parseDouble(finalRateLabel.getText().replaceAll("[^\\d.]", ""))) + "/hr</font></p>"
-            + "<p><b>Estimated Total Cost:</b><br><font size='+2' color='#2ecc71'>" + totalLabel.getText() + "</font></p>"
-            + "</body></html>";
-            
-        JOptionPane.showMessageDialog(window, new JLabel(htmlQuote), "Project Quote", JOptionPane.INFORMATION_MESSAGE);
+        try {
+            // Extract details
+            String skill = (String) skillCombo.getSelectedItem();
+            String experience = (String) experienceCombo.getSelectedItem();
+            String complexity = (String) complexityCombo.getSelectedItem();
+            String location = (String) locationCombo.getSelectedItem();
+            String hours = hoursField.getText();
+            String hourlyRate = finalRateLabel.getText();
+            String totalCost = totalLabel.getText();
+
+            // Create PDF using iText
+            com.itextpdf.text.Document document = new com.itextpdf.text.Document();
+            String filename = "Project_Quote_" + System.currentTimeMillis() + ".pdf";
+            com.itextpdf.text.pdf.PdfWriter.getInstance(document, new java.io.FileOutputStream(filename));
+            document.open();
+
+            com.itextpdf.text.Font titleFont = new com.itextpdf.text.Font(
+                    com.itextpdf.text.Font.FontFamily.HELVETICA, 20, com.itextpdf.text.Font.BOLD, com.itextpdf.text.BaseColor.BLUE);
+            com.itextpdf.text.Font labelFont = new com.itextpdf.text.Font(
+                    com.itextpdf.text.Font.FontFamily.HELVETICA, 12, com.itextpdf.text.Font.BOLD);
+            com.itextpdf.text.Font normalFont = new com.itextpdf.text.Font(
+                    com.itextpdf.text.Font.FontFamily.HELVETICA, 12, com.itextpdf.text.Font.NORMAL);
+
+            // Header
+            document.add(new com.itextpdf.text.Paragraph("FREELANCE FAIR-WAGE PLATFORM", titleFont));
+            document.add(new com.itextpdf.text.Paragraph("Official Project Quotation\n\n", normalFont));
+
+            // Table
+            com.itextpdf.text.pdf.PdfPTable table = new com.itextpdf.text.pdf.PdfPTable(2);
+            table.setWidthPercentage(100);
+            table.addCell(new com.itextpdf.text.Phrase("Skill", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(skill, normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Experience", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(experience, normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Complexity", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(complexity, normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Location Tier", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(location, normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Estimated Hours", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(hours, normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Fair Hourly Rate", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(hourlyRate + "/hr", normalFont));
+            table.addCell(new com.itextpdf.text.Phrase("Total Project Cost", labelFont));
+            table.addCell(new com.itextpdf.text.Phrase(totalCost, normalFont));
+
+            document.add(table);
+
+            // Footer
+            document.add(new com.itextpdf.text.Paragraph("\nGenerated on: " + new java.util.Date(), normalFont));
+            document.add(new com.itextpdf.text.Paragraph("Thank you for using the Fair Wage Calculator!", normalFont));
+
+            document.close();
+
+            // Auto-open PDF (cross-platform)
+            java.awt.Desktop.getDesktop().open(new java.io.File(filename));
+
+            JOptionPane.showMessageDialog(window,
+                    "Quotation PDF generated and opened successfully!\nSaved as: " + filename,
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(window,
+                    "Error generating or opening PDF: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
+
 
     private void resetFields() {
         skillCombo.setSelectedIndex(0);
@@ -311,7 +373,7 @@ public class WageCalculator {
     private JLabel createStyledLabel(String text) {
         JLabel label = new JLabel(text);
         label.setForeground(textColor);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        label.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 14));
         return label;
     }
     
@@ -320,7 +382,7 @@ public class WageCalculator {
         textField.setBackground(inputBgColor);
         textField.setForeground(textColor);
         textField.setCaretColor(accentColor);
-        textField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        textField.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 14));
         textField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(80, 80, 80)),
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)
@@ -332,7 +394,7 @@ public class WageCalculator {
         JComboBox<String> comboBox = new JComboBox<>(items);
         comboBox.setBackground(inputBgColor);
         comboBox.setForeground(textColor);
-        comboBox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        comboBox.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 14));
         return comboBox;
     }
     
@@ -353,7 +415,7 @@ public class WageCalculator {
             " " + title + " ",
             javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION,
             javax.swing.border.TitledBorder.DEFAULT_POSITION,
-            new Font("Segoe UI", Font.BOLD, 16),
+            new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 16),
             textColor
         );
     }
