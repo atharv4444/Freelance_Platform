@@ -15,10 +15,16 @@ import java.sql.SQLException;
 import java.sql.Timestamp; 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.DriverManager;
 
 public class PaymentManager {
     // --- DATABASE INTEGRATION ---
     private final DatabaseManager dbManager;
+    private JTable paymentTable;
     public enum UserRole { CLIENT, FREELANCER, ADMIN }
     private UserRole currentUserRole;
     
@@ -87,6 +93,33 @@ public class PaymentManager {
             // Fallback to default
         }
     }
+
+    private void loadPaymentsFromDatabase() {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:freelance_platform.db");
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM payments")) {
+
+            DefaultTableModel model = (DefaultTableModel) paymentTable.getModel();
+            model.setRowCount(0); // ✅ Clear old rows before loading
+
+            while (rs.next()) {
+                model.addRow(new Object[] {
+                    rs.getString("payment_id"),
+                    rs.getString("project_id"),
+                    rs.getString("freelancer_name"),
+                    rs.getDouble("amount"),
+                    rs.getString("payment_date"),
+                    rs.getString("status")
+                });
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
     
     // --- SHOW WINDOW METHODS ---
     public void showWindow() {
@@ -105,6 +138,7 @@ public class PaymentManager {
         projectIdField.getText() : "";
         loadData(prj);
         
+        loadPaymentsFromDatabase();
         frame.setVisible(true);
     }
     
