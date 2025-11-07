@@ -243,8 +243,8 @@ public class Main extends JFrame {
             .collect(Collectors.toList());
 
         switch (sortOrder) {
-            case "Rating (High to Low)" -> filteredList.sort(Comparator.comparing(Freelancer::getRating).reversed());
-            case "Name (A-Z)" -> filteredList.sort(Comparator.comparing(Freelancer::getName));
+            case "Rating (High to Low)" : filteredList.sort(Comparator.comparing(Freelancer::getRating).reversed());
+            case "Name (A-Z)" : filteredList.sort(Comparator.comparing(Freelancer::getName));
         }
 
         if (filteredList.isEmpty()) {
